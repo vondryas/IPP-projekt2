@@ -1,10 +1,9 @@
 # Byte-compiled / optimized / DLL files
-IPPcode23Interpret/__pycache__/
+__pycache__/
+__pycache__/*.pyc
 *.py[cod]
 *$py.class
-*.pyc
-*__pycache/
-IPPcode23Interpret/__pycache__/__init__.cpython-310.pyc
+
 # C extensions
 *.so
 

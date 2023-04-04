@@ -2,6 +2,7 @@ import argparse
 import sys
 import io
 
+# Modified argparse library
 class MyArgumentParser(argparse.ArgumentParser):
 
     # Overriding the method to write custom error when combining -h/--help with other arguments
@@ -17,6 +18,8 @@ class MyArgumentParser(argparse.ArgumentParser):
         args = {'prog': self.prog, 'message': message}
         self.exit(10, ('%(prog)s: error: %(message)s\n') % args)
 
+# Class for parsing arguments
+# Using modified argparse library
 class ArgumentParser:
 
     __slots__ = ("args", "parser", "input", "error_message")
@@ -29,20 +32,25 @@ class ArgumentParser:
         self.parser.add_argument(
             "-i", "--input", dest="input_file", help="input file")
         self.args = None
-        self.input = ""
+        self.input = sys.stdin
         self.error_message = ""
 
+    # Parse arguments and return error code 0 if everything is ok
+    # Return error code 10 if no mandatory arguments are found or combining -h/--help with other arguments
+    # Return error code 11 if input file or source file is not found or is not readable
     def parse_args(self):
         self.args = self.parser.parse_args()
 
         if self.args.source_file is None and self.args.input_file is None:
-            self.error_message = "No mandatory arguments found at least one of them is required"
+            self.error_message = "No mandatory arguments found at least one of them is required (-s/--source or -i/--input)"
             return 10
 
         if self.args.input_file is not None:
             try:
                 with open(self.args.input_file, "r") as file:
                     self.input = file.read()
+                # Convert input to StringIO object 
+                # it can be used as input for .readline() method
                 self.input = io.StringIO(self.input)
             except FileNotFoundError:
                 self.error_message = f"Input file {self.args.input_file} not found"
@@ -52,6 +60,7 @@ class ArgumentParser:
                 return 11
         if self.args.source_file is not None:
             try:
+                # Check if source file is readable or exists
                 with open(self.args.source_file, "r") as file:
                     pass
             except FileNotFoundError:
