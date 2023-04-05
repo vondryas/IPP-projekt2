@@ -2,16 +2,18 @@ import re
 import xml
 import xml.dom.minidom as mdom
 import sys
+import IPPcode23Interpret.ErrorHandler as e
 
 # Class for parsing xml file to list of instructions
 class XmlParser:
 
-    __slots__ = ("code", "TYPES", "error_message")
+    __slots__ = ("code", "TYPES", "error_message", "force_exit")
 
-    def __init__(self):
+    def __init__(self, force_exit=False):
         self.code = []
         self.TYPES = ["int", "bool", "string", "nil"]
         self.error_message = ""
+        self.force_exit = force_exit
 
     # Convert escape sequences to characters
     @staticmethod
@@ -66,24 +68,33 @@ class XmlParser:
                 valid_attr.remove(attribute_name)
             else:
                 self.error_message = f"Instruction element has invalid attribute {attribute_name}.\nXML file have wrong structure"
-
-        if valid_attr:
+                return 32
+            
+        if len(valid_attr) != 0:
             self.error_message = f"Instruction element has no attributes {valid_attr}.\nXML file have wrong structure"
+            return 32
         
         order = instruction.getAttribute("order")
 
         if not order.isdigit():
             self.error_message = f"Instruction attribute order must be a number not {instruction.getAttribute('order')}.\nXML file have wrong structure"
+            return 32
 
         order = int(order)
+        
+        if order < 1:
+            self.error_message = f"Instruction attribute order must be a positive integer not {order}.\nXML file have wrong structure"
+            return 32
 
         if order in order_list:
             self.error_message = f"Instruction attribute order must be unique number. Conflict number {order}\nXML file have wrong structure"
-        
+            return 32
+
         for argument in instruction.childNodes:
             if argument.nodeType == argument.ELEMENT_NODE:
                 if argument.tagName not in valid_elem:
                     self.error_message = f"Invalid or duplicite element {argument.tagName}.\nXML file have wrong structure"
+                    return 32
                 else:
                     valid_elem.remove(argument.tagName)
 
@@ -103,7 +114,11 @@ class XmlParser:
             return 32
         return 0
 
-    def parse_to_interpreter(self, xml_file = None):
+    # Errors are by decorator
+    # This function create list of instructions for interpreter an store it in self.code
+    @e.ErrorHandler.handle_error
+    def parse_to_interpreter(self, xml_file = None, force_exit=False):
+        self.force_exit = force_exit
         # Parse XML file
         try:
             if xml_file is not None:
@@ -163,7 +178,6 @@ class XmlParser:
             for i in range(1, 4):
                 argument = instruction.getElementsByTagName(f"arg{i}")
                 if argument:
-                    
                     # Error if wrong sequence of arguments
                     if arguments_sequence_err:
                         self.error_message = "Instruction element has invalid sequence of arguments.\nXML file have wrong structure"
@@ -182,10 +196,13 @@ class XmlParser:
                         value = value.strip()
                         if type_ == "string":
                             value = XmlParser.escape_seq_to_char(value)
-
+                            
+                        # format for variables and constants
+                        # type/frame@value/name    
                         arg = type_ + "@" + value
 
                     else:
+                        # If not varible or constant
                         arg = argument[0].firstChild.data.strip() if argument[0].firstChild is not None else ""
 
                     # Adding argument to instruction node
@@ -202,4 +219,6 @@ class XmlParser:
 
         # Removing order numbers from instructions
         self.code = [instruction[1:] for instruction in self.code]
+        #                                0        1      2     3
+        # instruction is in format [instruction, arg1, arg2, arg3]
         return 0

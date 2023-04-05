@@ -1,17 +1,33 @@
 import IPPcode23Interpret.TacInterpret as inter
 import IPPcode23Interpret.SemanticAnalyzer as s
 import IPPcode23Interpret.XmlParser as xml
-import IPPcode23Interpret.ErrorHandler as e
 import IPPcode23Interpret.ArgumentParser as a
+import sys
 
 
 if __name__ == "__main__":
-    err = e.ErrorHandler()
-    arg = a.ArgumentParser()
-    err.handle(arg.parse_args(), arg.error_message)
-    rq = xml.XmlParser()
-    err.handle(rq.parse_to_interpreter(arg.args.source_file), rq.error_message)
-    sem = s.SemanticAnalyzer()
-    err.handle(sem.check_semantic(rq.code), sem.error_message)
-    aha = inter.TACInterpreter(rq.code, sem.labels, arg.input)
-    err.handle(aha.interpret(), aha.error_message, True)
+    argument_parser = a.ArgumentParser()
+    
+    argument_parser.parse_args()
+    
+    xml_parser = xml.XmlParser()
+    
+    xml_parser.parse_to_interpreter(xml_file = argument_parser.args.source_file)
+    
+    semantic_analysis = s.SemanticAnalyzer()
+
+    semantic_analysis.check_semantic(code = xml_parser.code)
+
+    if argument_parser.args.input_file is None:
+        ippcode_interpreter = inter.TACInterpreter(
+            code = xml_parser.code, labels = semantic_analysis.labels)
+
+        ippcode_interpreter.interpret(force_exit_after_interpret=True)
+        
+    else:
+        with open(argument_parser.args.input_file, "r") as f:
+            
+            ippcode_interpreter = inter.TACInterpreter(
+                code = xml_parser.code, labels = semantic_analysis.labels, input_stream = f)
+
+            ippcode_interpreter.interpret(force_exit_after_interpret=True)

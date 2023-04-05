@@ -1,17 +1,17 @@
-from . import Nil
-
+from . import ErrorHandler as e
 # Class that implement semantic analysis of the code
 class SemanticAnalyzer:
 
-    __slots__ = ("labels", "error_message", "_expected_labels", "_frames")
+    __slots__ = ("labels", "error_message", "_expected_labels", "_frames", "force_exit")
 
-    def __init__(self):
+    def __init__(self, force_exit=False):
         self.labels = {}
         self._expected_labels = []
         self.error_message = ""
         self._frames = ["GF", "LF", "TF"]
+        self.force_exit = force_exit
 
-     # Method that converts string to int
+    # Method that converts string to int
     @staticmethod
     def str_to_int(string: str):
         base = 10
@@ -66,22 +66,22 @@ class SemanticAnalyzer:
             if type_1 not in self._frames:
                 if instruction[0] not in ["EQ", "JUMPIFEQ", "JUMPIFNEQ"]:
                     if type_1 == "nil":
-                        self.error_message = f"Invalid type {type_1} of first argument in instruction {instruction[0]} on index {code.index(instruction)}. Indexed from 0\n"
+                        self.error_message = f"Invalid type {type_1} of first argument in instruction {instruction[0]} on index {code.index(instruction)}. Indexed from 0"
                         return 53
             if type_2 not in self._frames:
                 if instruction[0] not in ["EQ", "JUMPIFEQ", "JUMPIFNEQ"]:
                     if type_2 == "nil":
-                        self.error_message = f"Invalid type {type_2} of second argument in instruction {instruction[0]} on index {code.index(instruction)}. Indexed from 0\n"
+                        self.error_message = f"Invalid type {type_2} of second argument in instruction {instruction[0]} on index {code.index(instruction)}. Indexed from 0"
                         return 53
             return 0
-        self.error_message = f"Invalid type {type_1} of first argument in instruction {instruction[0]} on index {code.index(instruction)}. Indexed from 0\n"
+        self.error_message = f"Invalid type {type_1} of first argument in instruction {instruction[0]} on index {code.index(instruction)}. Indexed from 0"
         return 53
 
     # Method that checks if constant given in argument is valid for int2char.
     # if invalid type return 53
     # if invalid value return 58
     # if valid return 0
-    def check_int2str(self, instruction, code):
+    def check_int2char(self, instruction, code):
         type_1, value = instruction[2].split("@",1)
         if type_1 not in self._frames:
             if type_1 != "int":
@@ -108,19 +108,15 @@ class SemanticAnalyzer:
         return 0
 
     # Method that checks if constant is valid for given valid types.
-    # it can take 1, 2 or 3 arguments it can be used for instructions that only check if 
+    # it can take 1 or 2 arguments it can be used for instructions that only check if 
     # constant in argument is valid input for given instruction
     # if not valid return 53 else 0
-    def check_type_mul_operands(self, instruction, code, number_of_operands, first_type, second_type = None, third_type = None):
+    def check_type_mul_operands(self, instruction, code, number_of_operands, first_type, second_type = None):
         if number_of_operands == 1:
             type_1 = instruction[2].split("@",1)[0]
         elif number_of_operands == 2:
-            type_1 = instruction[2].split("@",1)[0]
-            type_2 = instruction[3].split("@",1)[0]
-        elif number_of_operands == 3:
-            type_1 = instruction[1].split("@",1)[0]
-            type_2 = instruction[2].split("@",1)[0]
-            type_3 = instruction[3].split("@",1)[0]
+            type_1, value1 = instruction[2].split("@",1)
+            type_2, value2 = instruction[3].split("@",1)
 
         if type_1 not in self._frames:
             if type_1 != first_type:
@@ -131,17 +127,27 @@ class SemanticAnalyzer:
                 if type_2 != second_type:
                     self.error_message = f"Invalid type {type_2} of second argument in instruction {instruction[0]} on index {code.index(instruction)}. Indexed from 0\nOnly {second_type} is allowed"
                     return 53
-            if number_of_operands > 2:
-                if type_3 not in self._frames:
-                    if type_3 != third_type:
-                        self.error_message = f"Invalid type {type_3} of third argument in instruction {instruction[0]} on index {code.index(instruction)}. Indexed from 0\nOnly {third_type} is allowed"
-                        return 53
+                if instruction[0] == "IDIV":
+                    if SemanticAnalyzer.str_to_int(value2) == 0:
+                        self.error_message = f"Invalid value {value2} of second argument in instruction {instruction[0]} on index {code.index(instruction)}. Indexed from 0\nCannot divide by 0"
+                        return 57
+                if instruction[0] == "SETCHAR":
+                    if len(value2) == 0:
+                        self.error_message = f"Invalid value {value2} of second argument in instruction {instruction[0]} on index {code.index(instruction)}. Indexed from 0\nEmpty string is not allowed"
+                        return 58
+                if instruction[0] in ["GETCHAR", "STRI2INT"]:
+                    if  len(value1) == 0:
+                        self.error_message = f"Invalid value {value2} of first argument in instruction {instruction[0]} on index {code.index(instruction)}. Indexed from 0\nEmpty string is not allowed"
+                        return 58
         return 0
 
+
     # Method that do semantic analysis of given code.
-    def check_semantic(self, code):
-        self.labels = {}
-        self._expected_labels = []
+    # Erro will be handled by decorator
+    @e.ErrorHandler.handle_error
+    def check_semantic(self, code, force_exit = False):
+        # Reset
+        self.__init__(force_exit=force_exit)
         # Checking for labels and adding them to self.labels
         # Checking constants and their types
         for instruction in code:
@@ -151,36 +157,49 @@ class SemanticAnalyzer:
             elif instruction[0] in ["JUMP", "JUMPIFEQ", "JUMPIFNEQ", "CALL"]:
                 self.add_expected_label(instruction[1])
                 if instruction[0] in ["JUMPIFEQ", "JUMPIFNEQ"]:
-                    if self.check_relation_operators_constants(instruction, code) != 0:
-                        return 53
+                    err = self.check_relation_operators_constants(instruction, code)
+                    if err != 0:
+                        return err
             elif instruction[0] in ["ADD", "SUB", "MUL", "IDIV"]:
-                if self.check_type_mul_operands(instruction, code, 2, "int", "int") != 0:
-                    return 53
+                err = self.check_type_mul_operands(instruction, code, 2, "int", "int")
+                if err != 0:
+                    return err
             elif instruction[0] in ["LT", "GT", "EQ"]:
-                if self.check_relation_operators_constants(instruction, code) != 0:
-                    return 53
-            elif instruction[0] in ["AND", "OR", "NOT"]:
-                if self.check_type_mul_operands(instruction, code, 2, "bool", "bool") != 0:
-                    return 53
+                err = self.check_relation_operators_constants(instruction, code)
+                if err != 0:
+                    return err
+            elif instruction[0] in ["AND", "OR"]:
+                err = self.check_type_mul_operands(instruction, code, 2, "bool", "bool")
+                if err != 0:
+                    return err
+            elif instruction[0] == "NOT":
+                err = self.check_type_mul_operands(instruction, code, 1, "bool")
+                if err != 0:
+                    return err
             elif instruction[0] == "INT2CHAR":
-                err = self.check_int2str(instruction, code)
+                err = self.check_int2char(instruction, code)
                 if err != 0:
                     return err
             elif instruction[0] == "STRI2INT":
-                if self.check_type_mul_operands(instruction, code, 2, "string", "int") != 0:
-                    return 53
+                err = self.check_type_mul_operands(instruction, code, 2, "string", "int")
+                if err != 0:
+                    return err
             elif instruction[0] == "CONCAT":
-                if self.check_type_mul_operands(instruction, code, 2, "string", "string") != 0:
-                    return 53
+                err = self.check_type_mul_operands(instruction, code, 2, "string", "string")
+                if err != 0:
+                    return err
             elif instruction[0] == "STRLEN":
-                if self.check_type_mul_operands(instruction, code, 1, "string") != 0:
-                    return 53
+                err = self.check_type_mul_operands(instruction, code, 1, "string")
+                if err != 0:
+                    return err
             elif instruction[0] == "GETCHAR":
-                if self.check_type_mul_operands(instruction, code, 2, "string", "int") != 0:
-                    return 53
+                err = self.check_type_mul_operands(instruction, code, 2, "string", "int")
+                if err != 0:
+                    return err
             elif instruction[0] == "SETCHAR":
-                if self.check_type_mul_operands(instruction, code, 3, "string", "int", "string") != 0:
-                    return 53
+                err = self.check_type_mul_operands(instruction, code, 2, "int", "string") 
+                if err != 0:
+                    return err
             elif instruction[0] == "EXIT":
                 err = self.check_exit(instruction, code)
                 if err != 0:

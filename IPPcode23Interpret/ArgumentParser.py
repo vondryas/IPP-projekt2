@@ -1,6 +1,7 @@
 import argparse
 import sys
-import io
+import os
+from . import ErrorHandler as e
 
 # Modified argparse library
 class MyArgumentParser(argparse.ArgumentParser):
@@ -22,23 +23,30 @@ class MyArgumentParser(argparse.ArgumentParser):
 # Using modified argparse library
 class ArgumentParser:
 
-    __slots__ = ("args", "parser", "input", "error_message")
+    __slots__ = ("args", "parser", "error_message", "force_exit")
 
-    def __init__(self):
+    def __init__(self, force_exit=False):
         self.parser = MyArgumentParser(
             description="Interpreter of IPPcode23 interpreting xml IPPcode23")
+        
         self.parser.add_argument(
             "-s", "--source", dest="source_file", help="source file")
+        
         self.parser.add_argument(
             "-i", "--input", dest="input_file", help="input file")
         self.args = None
-        self.input = sys.stdin
         self.error_message = ""
+        self.force_exit = force_exit
 
     # Parse arguments and return error code 0 if everything is ok
     # Return error code 10 if no mandatory arguments are found or combining -h/--help with other arguments
     # Return error code 11 if input file or source file is not found or is not readable
-    def parse_args(self):
+    # Errors are handled by decorator
+    @e.ErrorHandler.handle_error
+    def parse_args(self, force_exit=False):
+        # Reset
+        self.__init__(force_exit)
+
         self.args = self.parser.parse_args()
 
         if self.args.source_file is None and self.args.input_file is None:
@@ -46,27 +54,19 @@ class ArgumentParser:
             return 10
 
         if self.args.input_file is not None:
-            try:
-                with open(self.args.input_file, "r") as file:
-                    self.input = file.read()
-                # Convert input to StringIO object 
-                # it can be used as input for .readline() method
-                self.input = io.StringIO(self.input)
-            except FileNotFoundError:
+            if not os.path.exists(self.args.input_file):
                 self.error_message = f"Input file {self.args.input_file} not found"
                 return 11
-            except PermissionError:
+            elif not os.access(self.args.input_file, os.R_OK):
                 self.error_message = f"Input file {self.args.input_file} is not readable. No permission"
                 return 11
+            
         if self.args.source_file is not None:
-            try:
-                # Check if source file is readable or exists
-                with open(self.args.source_file, "r") as file:
-                    pass
-            except FileNotFoundError:
+            if not os.path.exists(self.args.source_file):
                 self.error_message = f"Source file {self.args.source_file} not found"
                 return 11
-            except PermissionError:
+            elif not os.access(self.args.source_file, os.R_OK):
                 self.error_message = f"Source file {self.args.source_file} is not readable. No permission"
                 return 11
+            
         return 0

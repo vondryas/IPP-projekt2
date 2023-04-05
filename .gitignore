@@ -135,3 +135,9 @@ err
 aha
 out
 .vscode/
+test.php
+parse.php
+index.html
+ipp-2023-tests/
+classes/
+lib/
