@@ -21,7 +21,7 @@ class MyArgumentParser(argparse.ArgumentParser):
 
 # Class for parsing arguments
 # Using modified argparse library
-class ArgumentParser:
+class ArgumentParser(e.ErrorHandable):
 
     __slots__ = ("args", "parser", "error_message", "force_exit")
 
@@ -34,18 +34,20 @@ class ArgumentParser:
         
         self.parser.add_argument(
             "-i", "--input", dest="input_file", help="input file")
+        super().__init__(force_exit)
+
+    def _reset(self, force_exit=False):
         self.args = None
-        self.error_message = ""
-        self.force_exit = force_exit
+        super().__init__(force_exit)
 
     # Parse arguments and return error code 0 if everything is ok
     # Return error code 10 if no mandatory arguments are found or combining -h/--help with other arguments
     # Return error code 11 if input file or source file is not found or is not readable
     # Errors are handled by decorator
-    @e.ErrorHandler.handle_error
+    @e.ErrorHandable.handle_error
     def parse_args(self, force_exit=False):
         # Reset
-        self.__init__(force_exit)
+        self._reset(force_exit)
 
         self.args = self.parser.parse_args()
 

@@ -5,23 +5,27 @@ import sys
 import IPPcode23Interpret.ErrorHandler as e
 
 # Class for parsing xml file to list of instructions
-class XmlParser:
+class XmlParser(e.ErrorHandable):
 
     __slots__ = ("code", "TYPES", "error_message", "force_exit")
 
     def __init__(self, force_exit=False):
         self.code = []
         self.TYPES = ["int", "bool", "string", "nil"]
-        self.error_message = ""
-        self.force_exit = force_exit
+        super().__init__(force_exit)
+
+    def _reset(self, force_exit=False):
+        self.code = []
+        super().__init__(force_exit)
+
 
     # Convert escape sequences to characters
     @staticmethod
-    def escape_seq_to_char(string):
+    def _escape_seq_to_char(string):
         return re.sub(r'\\(\d{3})', lambda match: chr(int(match.group(1))), string)
     
     # Check if program element is valid
-    def check_program_element(self, root):
+    def _check_program_element(self, root):
         root_att = list(root.attributes.keys())
         valid_attr = ["language", "name", "description"]
 
@@ -47,7 +51,7 @@ class XmlParser:
         return 0
     
     # Check if there are only instruction elements in program element
-    def check_instructions_level_structure(self, program):
+    def _check_instructions_level_structure(self, program):
         for elem in program.childNodes:
             if elem.nodeType == elem.ELEMENT_NODE:
                 if elem.tagName != "instruction":
@@ -58,7 +62,7 @@ class XmlParser:
     # Check if instruction element is valid and there are only argument elements in instruction element
     # And if order is unique
     # Returning order of instruction
-    def check_instruction_element(self, instruction, order_list):
+    def _check_instruction_element(self, instruction, order_list):
         instruction_att = list(instruction.attributes.keys())
         valid_attr = ["order", "opcode"]
         valid_elem = ["arg1", "arg2", "arg3"]
@@ -101,7 +105,7 @@ class XmlParser:
         return order
 
     # Check if argument element is valid
-    def check_argument_element(self, argument):
+    def _check_argument_element(self, argument):
         arg_att = list(argument.attributes.keys())
         if len(arg_att) != 1:
             self.error_message = f"Argument element has invalid number of attributes.\nXML file have wrong structure"
@@ -116,9 +120,9 @@ class XmlParser:
 
     # Errors are by decorator
     # This function create list of instructions for interpreter an store it in self.code
-    @e.ErrorHandler.handle_error
+    @e.ErrorHandable.handle_error
     def parse_to_interpreter(self, xml_file = None, force_exit=False):
-        self.force_exit = force_exit
+        self._reset(force_exit)
         # Parse XML file
         try:
             if xml_file is not None:
@@ -137,9 +141,9 @@ class XmlParser:
         program = dom.documentElement
 
         # Checking root and instruction elements structure
-        if self.check_program_element(program) != 0:
+        if self._check_program_element(program) != 0:
             return 32
-        if self.check_instructions_level_structure(program) != 0:
+        if self._check_instructions_level_structure(program) != 0:
             return 32
 
         # List of instructions
@@ -153,7 +157,7 @@ class XmlParser:
             instruction_node = []
 
             # Checking instruction and argument elements structure
-            order = self.check_instruction_element(instruction, order_list)
+            order = self._check_instruction_element(instruction, order_list)
 
             # Check if there is an error from previous function
             if self.error_message != "":
@@ -184,7 +188,7 @@ class XmlParser:
                         return 32
                     
                     # Checking argument element structure
-                    if self.check_argument_element(argument[0]) != 0:
+                    if self._check_argument_element(argument[0]) != 0:
                         return 32
 
                     type_ = argument[0].getAttribute("type").lower().strip()
@@ -195,7 +199,7 @@ class XmlParser:
                         # If type is string, it convert escape sequences to characters
                         value = value.strip()
                         if type_ == "string":
-                            value = XmlParser.escape_seq_to_char(value)
+                            value = XmlParser._escape_seq_to_char(value)
                             
                         # format for variables and constants
                         # type/frame@value/name    
