@@ -2,7 +2,7 @@ import re
 import xml
 import xml.dom.minidom as mdom
 import sys
-import IPPcode23Interpret.ErrorHandler as e
+from . import ErrorHandler as e
 
 # Class for parsing xml file to list of instructions
 class XmlParser(e.ErrorHandable):
@@ -121,7 +121,7 @@ class XmlParser(e.ErrorHandable):
     # Errors are by decorator
     # This function create list of instructions for interpreter an store it in self.code
     @e.ErrorHandable.handle_error
-    def parse_to_interpreter(self, xml_file = None, force_exit=False):
+    def parse_to_interpret(self, xml_file = None, force_exit=False):
         self._reset(force_exit)
         # Parse XML file
         try:
